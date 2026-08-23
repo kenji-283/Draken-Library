@@ -1,69 +1,168 @@
 package com.example.pdf
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.pdf.PdfDocument
-import android.graphics.pdf.PdfRenderer
 import android.net.Uri
-import android.os.ParcelFileDescriptor
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import com.example.data.datasource.BooksJsonManager
 import com.example.data.model.BookEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 
 class PdfHelper(private val context: Context) {
 
     /**
-     * Asegura o genera un archivo PDF local para el libro especificado.
-     * Si no tiene un PDF externo asignado, genera una edición clásica tipográfica en PDF.
+     * Devuelve el archivo PDF local para lectura.
+     * Si no está descargado, se genera en memoria/cache temporal para permitir lectura en línea (0 MB de almacenamiento persistente).
      */
-    suspend fun getOrCreatePdfFile(book: BookEntity): File = withContext(Dispatchers.IO) {
+    suspend fun getPdfFileForReading(book: BookEntity): File = withContext(Dispatchers.IO) {
         val pdfDir = File(context.filesDir, "pdfs")
         if (!pdfDir.exists()) pdfDir.mkdirs()
 
-        val fileName = "book_${book.id.replace("[^a-zA-Z0-9_]".toRegex(), "_")}.pdf"
-        val pdfFile = File(pdfDir, fileName)
+        val persistentFile = File(pdfDir, "book_${sanitizeId(book.id)}.pdf")
 
-        // Si ya existe y no está vacío, devolverlo
-        if (pdfFile.exists() && pdfFile.length() > 0) {
-            return@withContext pdfFile
+        // 1. Si ya está descargado localmente y existe
+        if (book.isDownloaded && persistentFile.exists() && persistentFile.length() > 0) {
+            return@withContext persistentFile
         }
 
-        // Si el libro tiene una URI o ruta externa
+        // 2. Si el libro tiene una ruta local custom o content URI
         if (book.pdfPath.isNotEmpty()) {
-            try {
-                if (book.pdfPath.startsWith("content://") || book.pdfPath.startsWith("file://")) {
+            val customFile = File(book.pdfPath)
+            if (customFile.exists() && customFile.length() > 0) {
+                return@withContext customFile
+            }
+            if (book.pdfPath.startsWith("content://") || book.pdfPath.startsWith("file://")) {
+                try {
+                    val tempCache = File(context.cacheDir, "stream_reading_${sanitizeId(book.id)}.pdf")
                     val uri = Uri.parse(book.pdfPath)
                     context.contentResolver.openInputStream(uri)?.use { input ->
-                        FileOutputStream(pdfFile).use { output ->
-                            input.copyTo(output)
-                        }
+                        FileOutputStream(tempCache).use { output -> input.copyTo(output) }
                     }
-                    if (pdfFile.exists() && pdfFile.length() > 0) {
-                        return@withContext pdfFile
+                    if (tempCache.exists() && tempCache.length() > 0) {
+                        return@withContext tempCache
                     }
-                } else {
-                    val customFile = File(book.pdfPath)
-                    if (customFile.exists()) {
-                        return@withContext customFile
-                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+
+        // 3. Si tiene una URL en línea / Google Drive
+        if (book.pdfOnlineUrl.isNotEmpty()) {
+            try {
+                val tempCache = File(context.cacheDir, "stream_reading_${sanitizeId(book.id)}.pdf")
+                val downloadUrl = BooksJsonManager.convertGoogleDriveUrl(book.pdfOnlineUrl)
+                downloadFileFromUrl(downloadUrl, tempCache)
+                if (tempCache.exists() && tempCache.length() > 0) {
+                    return@withContext tempCache
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
 
-        // Generar un PDF editorial elegante con texto real del libro
-        generateClassicEditorialPdf(book, pdfFile)
-        return@withContext pdfFile
+        // 4. Si es del catálogo editorial, generar versión clásica en cache temporal o persistente
+        val targetFile = if (book.isDownloaded) persistentFile else File(context.cacheDir, "stream_${sanitizeId(book.id)}.pdf")
+        if (targetFile.exists() && targetFile.length() > 0) {
+            return@withContext targetFile
+        }
+        generateClassicEditorialPdf(book, targetFile)
+        return@withContext targetFile
+    }
+
+    /**
+     * Descarga explícitamente el libro al almacenamiento persistente del dispositivo.
+     */
+    suspend fun downloadBookToStorage(book: BookEntity): Pair<File, Long> = withContext(Dispatchers.IO) {
+        val pdfDir = File(context.filesDir, "pdfs")
+        if (!pdfDir.exists()) pdfDir.mkdirs()
+
+        val destFile = File(pdfDir, "book_${sanitizeId(book.id)}.pdf")
+
+        // Si tiene URL remota / Google Drive
+        if (book.pdfOnlineUrl.isNotEmpty()) {
+            try {
+                val url = BooksJsonManager.convertGoogleDriveUrl(book.pdfOnlineUrl)
+                downloadFileFromUrl(url, destFile)
+                if (destFile.exists() && destFile.length() > 0) {
+                    return@withContext Pair(destFile, destFile.length())
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Si tiene ruta content URI
+        if (book.pdfPath.isNotEmpty() && (book.pdfPath.startsWith("content://") || book.pdfPath.startsWith("file://"))) {
+            try {
+                val uri = Uri.parse(book.pdfPath)
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(destFile).use { output -> input.copyTo(output) }
+                }
+                if (destFile.exists() && destFile.length() > 0) {
+                    return@withContext Pair(destFile, destFile.length())
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Generar archivo editorial persistente
+        generateClassicEditorialPdf(book, destFile)
+        val size = if (destFile.exists()) destFile.length() else 1024 * 1024 * 2L
+        return@withContext Pair(destFile, size)
+    }
+
+    /**
+     * Elimina el archivo descargado para liberar almacenamiento en el dispositivo.
+     */
+    suspend fun deleteLocalDownload(book: BookEntity): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val pdfDir = File(context.filesDir, "pdfs")
+            val file = File(pdfDir, "book_${sanitizeId(book.id)}.pdf")
+            if (file.exists()) {
+                file.delete()
+            }
+            if (book.pdfPath.isNotEmpty()) {
+                val customFile = File(book.pdfPath)
+                if (customFile.exists() && customFile.absolutePath.startsWith(context.filesDir.absolutePath)) {
+                    customFile.delete()
+                }
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    private fun sanitizeId(id: String): String {
+        return id.replace("[^a-zA-Z0-9_]".toRegex(), "_")
+    }
+
+    private fun downloadFileFromUrl(fileUrl: String, destinationFile: File) {
+        val url = URL(fileUrl)
+        val connection = url.openConnection() as HttpURLConnection
+        connection.connectTimeout = 12000
+        connection.readTimeout = 20000
+        connection.instanceFollowRedirects = true
+        connection.connect()
+
+        connection.inputStream.use { input ->
+            FileOutputStream(destinationFile).use { output ->
+                input.copyTo(output)
+            }
+        }
     }
 
     /**
@@ -71,7 +170,7 @@ class PdfHelper(private val context: Context) {
      */
     private fun generateClassicEditorialPdf(book: BookEntity, outputFile: File) {
         val document = PdfDocument()
-        val pageWidth = 595 // A4 standard width in points (72 dpi)
+        val pageWidth = 595 // A4 standard width in points
         val pageHeight = 842 // A4 standard height
 
         val pagesContent = getBookEditorialContent(book)
@@ -109,7 +208,6 @@ class PdfHelper(private val context: Context) {
                 isFakeBoldText = true
                 isAntiAlias = true
             }
-
             canvas.drawText(pageData.title, 54f, 85f, titlePaint)
 
             // Subtítulo de autor
@@ -260,7 +358,7 @@ class PdfHelper(private val context: Context) {
             else -> listOf(
                 EditorialPage(
                     title = "Capítulo I • ${book.title}",
-                    bodyText = "${book.synopsis}\n\nEn esta magna obra, ${book.author} despliega una prosa refinada que desafía los límites del entendimiento humano dentro del género de ${book.category}.\n\nCada página invita al lector a sumergirse en una reflexión profunda, donde las palabras trascienden el mero registro lingüístico para convertirse en instrumentos de introspección y sabiduría estética. La belleza de la obra radica en su capacidad para dialogar con los dilemas eternos de la condición humana.",
+                    bodyText = "${book.synopsis.ifBlank { "En esta destacada obra, nos sumergimos en las ideas maestras del autor." }}\n\nEn esta magna obra, ${book.author} despliega una prosa refinada que desafía los límites del entendimiento humano dentro del género de ${book.category}.\n\nCada página invita al lector a sumergirse en una reflexión profunda, donde las palabras trascienden el mero registro lingüístico para convertirse en instrumentos de introspección y sabiduría estética. La belleza de la obra radica en su capacidad para dialogar con los dilemas eternos de la condición humana.",
                     highlightQuote = "La lectura no es evasión, sino el encuentro más lúcido con la propia conciencia."
                 ),
                 EditorialPage(

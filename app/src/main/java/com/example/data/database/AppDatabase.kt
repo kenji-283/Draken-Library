@@ -6,17 +6,20 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.data.dao.BookDao
 import com.example.data.dao.BookNoteDao
+import com.example.data.dao.IdolDao
 import com.example.data.model.BookEntity
 import com.example.data.model.BookNoteEntity
+import com.example.data.model.IdolEntity
 
 @Database(
-    entities = [BookEntity::class, BookNoteEntity::class],
-    version = 1,
+    entities = [BookEntity::class, BookNoteEntity::class, IdolEntity::class],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun bookDao(): BookDao
     abstract fun bookNoteDao(): BookNoteDao
+    abstract fun idolDao(): IdolDao
 
     companion object {
         @Volatile

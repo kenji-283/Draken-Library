@@ -22,10 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -33,8 +35,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,8 +54,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.R
-import com.example.data.model.IdolAuthor
+import com.example.data.model.IdolEntity
 import com.example.ui.theme.AmberStar
 import com.example.ui.theme.CharcoalBlack
 import com.example.ui.theme.DarkSurface
@@ -62,8 +69,9 @@ import com.example.ui.theme.SubtleDivider
 
 @Composable
 fun IdolDetailScreen(
-    idol: IdolAuthor?,
+    idol: IdolEntity?,
     onBackClick: () -> Unit,
+    onDeleteClick: ((IdolEntity) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     if (idol == null) {
@@ -79,9 +87,53 @@ fun IdolDetailScreen(
     }
 
     val context = LocalContext.current
-    val imageResId = remember(idol.rutaDeFoto) {
-        val res = context.resources.getIdentifier(idol.rutaDeFoto, "drawable", context.packageName)
-        if (res != 0) res else R.drawable.img_drakens_banner
+    val isResource = idol.rutaFoto.isNotBlank() && !idol.rutaFoto.startsWith("/") && !idol.rutaFoto.startsWith("content:")
+    val imageResId = remember(idol.rutaFoto) {
+        if (isResource) {
+            val res = context.resources.getIdentifier(idol.rutaFoto, "drawable", context.packageName)
+            if (res != 0) res else R.drawable.img_drakens_banner
+        } else {
+            R.drawable.img_drakens_banner
+        }
+    }
+
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    val obrasList = remember(idol.obrasPrincipales) {
+        if (idol.obrasPrincipales.isBlank()) emptyList()
+        else idol.obrasPrincipales.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    if (showDeleteConfirmDialog && onDeleteClick != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            containerColor = DarkSurface,
+            title = {
+                Text("¿Eliminar autor del Salón?", color = SmokeWhite, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "Se retirará a '${idol.nombre}' del Salón de los Ídolos permanentemente.",
+                    color = MediumGray
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        onDeleteClick(idol)
+                        onBackClick()
+                    }
+                ) {
+                    Text("Eliminar", color = Color(0xFFCF6679), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Cancelar", color = MediumGray)
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -96,29 +148,45 @@ fun IdolDetailScreen(
             contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Botón de regreso
+            // Header bar
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    IconButton(
-                        onClick = onBackClick,
-                        modifier = Modifier.testTag("idol_detail_back_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = SmokeWhite
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = onBackClick,
+                            modifier = Modifier.testTag("idol_detail_back_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Volver",
+                                tint = SmokeWhite
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Perfil del Autor",
+                            color = SmokeWhite,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Perfil del Autor",
-                        color = SmokeWhite,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+
+                    if (onDeleteClick != null) {
+                        IconButton(
+                            onClick = { showDeleteConfirmDialog = true },
+                            modifier = Modifier.testTag("btn_delete_idol")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Eliminar Ídolo",
+                                tint = MediumGray
+                            )
+                        }
+                    }
                 }
             }
 
@@ -141,14 +209,31 @@ fun IdolDetailScreen(
                             modifier = Modifier
                                 .size(130.dp)
                                 .clip(RoundedCornerShape(20.dp))
-                                .border(2.dp, NightViolet, RoundedCornerShape(20.dp))
+                                .border(2.dp, NightViolet, RoundedCornerShape(20.dp)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Image(
-                                painter = painterResource(id = imageResId),
-                                contentDescription = "Foto de ${idol.nombre}",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
+                            if (idol.rutaFoto.isNotBlank() && (idol.rutaFoto.startsWith("/") || idol.rutaFoto.startsWith("content:"))) {
+                                AsyncImage(
+                                    model = idol.rutaFoto,
+                                    contentDescription = "Foto de ${idol.nombre}",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else if (isResource && imageResId != 0) {
+                                Image(
+                                    painter = painterResource(id = imageResId),
+                                    contentDescription = "Foto de ${idol.nombre}",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Text(
+                                    text = idol.nombre.take(1).uppercase(),
+                                    color = SmokeWhite,
+                                    fontSize = 42.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -160,10 +245,11 @@ fun IdolDetailScreen(
                             fontWeight = FontWeight.Bold
                         )
 
-                        if (idol.corriente.isNotEmpty()) {
+                        if (idol.corriente.isNotEmpty() || idol.epoca.isNotEmpty()) {
+                            val sub = listOf(idol.corriente, idol.epoca).filter { it.isNotEmpty() }.joinToString(" • ")
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "${idol.corriente} • ${idol.epoca}",
+                                text = sub,
                                 color = NightViolet,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -186,7 +272,7 @@ fun IdolDetailScreen(
                                     Icon(
                                         imageVector = Icons.Default.FormatQuote,
                                         contentDescription = null,
-                                        tint = AmberStar,
+                                        tint = NightViolet,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Text(
@@ -292,7 +378,7 @@ fun IdolDetailScreen(
             }
 
             // Obras Principales / Destacadas
-            if (idol.obrasPrincipales.isNotEmpty()) {
+            if (obrasList.isNotEmpty()) {
                 item {
                     Card(
                         modifier = Modifier
@@ -307,14 +393,14 @@ fun IdolDetailScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "OBRAS PRINCIPALES EN CATÁLOGO",
+                                text = "OBRAS DESTACADAS",
                                 color = MediumGray,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.5.sp
                             )
 
-                            idol.obrasPrincipales.forEach { obra ->
+                            obrasList.forEach { obra ->
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -341,3 +427,4 @@ fun IdolDetailScreen(
         }
     }
 }
+

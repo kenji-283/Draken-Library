@@ -24,16 +24,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.CollectionsBookmark
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.FormatQuote
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -87,6 +92,8 @@ fun HomeScreen(
     onBookClick: (String) -> Unit,
     onOpenPdfReader: (BookEntity) -> Unit,
     onOpenSyncDialog: () -> Unit,
+    onDownloadBook: (BookEntity) -> Unit = {},
+    onDeleteDownload: (BookEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedCategoryFilter by remember { mutableStateOf("Filosofía") }
@@ -99,6 +106,8 @@ fun HomeScreen(
         if (filtered.isNotEmpty()) filtered else uiState.books
     }
 
+    val storageMb = String.format("%.2f", uiState.totalStorageBytes / (1024.0 * 1024.0))
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -107,9 +116,19 @@ fun HomeScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Immersive Header (Architecture MVVM + Title + Action Button)
+        // Immersive Header con Logo sin título (ic_launcher) y Menú Google Drive / Sync
         item {
             ImmersiveHeader(onOpenSyncDialog = onOpenSyncDialog)
+        }
+
+        // Card de Gestor de Almacenamiento & Modo en Línea / Descargas
+        item {
+            StorageManagerBanner(
+                storageMb = storageMb,
+                downloadedCount = uiState.downloadedBooks.size,
+                totalCount = uiState.books.size,
+                onOpenSyncDialog = onOpenSyncDialog
+            )
         }
 
         // Horizontal Category Pills
@@ -134,23 +153,50 @@ fun HomeScreen(
         item {
             SectionHeader(
                 title = "Salón de los Ídolos",
-                actionText = "Ver todos",
+                actionText = if (uiState.idols.isNotEmpty()) "Ver todos (${uiState.idols.size})" else "Entronizar",
                 onActionClick = onNavigateToIdols
             )
             Spacer(modifier = Modifier.height(10.dp))
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("home_idols_row")
-            ) {
-                items(uiState.idols, key = { it.id }) { idol ->
-                    IdolAvatarCircle(
-                        initial = idol.nombre,
-                        name = idol.nombre.split(" ").lastOrNull() ?: idol.nombre,
-                        isActive = true,
-                        onClick = onNavigateToIdols
-                    )
+            if (uiState.idols.isEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onNavigateToIdols() },
+                    colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Psychology,
+                            contentDescription = null,
+                            tint = NightViolet,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Salón de los Ídolos vacío", color = SmokeWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Toca aquí para entronizar a tus autores y filósofos predilectos.", color = MediumGray, fontSize = 11.sp)
+                        }
+                    }
+                }
+            } else {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("home_idols_row")
+                ) {
+                    items(uiState.idols, key = { it.id }) { idol ->
+                        IdolAvatarCircle(
+                            initial = idol.nombre,
+                            name = idol.nombre.split(" ").lastOrNull() ?: idol.nombre,
+                            isActive = true,
+                            onClick = onNavigateToIdols
+                        )
+                    }
                 }
             }
         }
@@ -159,17 +205,48 @@ fun HomeScreen(
         item {
             SectionHeader(
                 title = "Biblioteca Reciente",
-                actionText = "Ver todos (${uiState.books.size})",
+                actionText = if (uiState.books.isNotEmpty()) "Ver catálogo (${uiState.books.size})" else "Añadir libro",
                 onActionClick = onNavigateToCatalog
             )
             Spacer(modifier = Modifier.height(10.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                recentBooks.take(4).forEach { book ->
-                    ImmersiveBookCard(
-                        book = book,
-                        onClick = { onBookClick(book.id) },
-                        onReadClick = { onOpenPdfReader(book) }
-                    )
+            if (uiState.books.isEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onNavigateToCatalog() },
+                    colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MenuBook,
+                            contentDescription = null,
+                            tint = NightViolet,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Tu biblioteca está vacía", color = SmokeWhite, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("Ve a la pestaña Catálogo para añadir tus libros y archivos PDF.", color = MediumGray, fontSize = 11.5.sp)
+                        }
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    recentBooks.take(4).forEach { book ->
+                        val isDownloading = uiState.downloadingBookIds.contains(book.id)
+                        ImmersiveBookCard(
+                            book = book,
+                            isDownloading = isDownloading,
+                            onClick = { onBookClick(book.id) },
+                            onReadClick = { onOpenPdfReader(book) },
+                            onDownloadClick = { onDownloadBook(book) },
+                            onDeleteDownloadClick = { onDeleteDownload(book) }
+                        )
+                    }
                 }
             }
         }
@@ -185,7 +262,7 @@ fun HomeScreen(
                 totalBooks = uiState.books.size,
                 totalNotes = uiState.allNotes.size,
                 totalIdols = uiState.idols.size,
-                finishedBooks = uiState.books.count { it.isFinished }
+                downloadedBooks = uiState.downloadedBooks.size
             )
         }
     }
@@ -202,28 +279,44 @@ private fun ImmersiveHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            Text(
-                text = "ARCHITECTURE MVVM",
-                color = MediumGray,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.5.sp
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Emblema sin nombre como logo de cabecera
+            Image(
+                painter = painterResource(id = R.drawable.draken_launcher_logo_1787517292585),
+                contentDescription = "Draken's Library Logo",
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, SubtleDivider, RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "Draken's Library",
-                color = SmokeWhite,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.5).sp
-            )
+
+            Column {
+                Text(
+                    text = "REPOSITORIO & BASE RELACIONAL",
+                    color = NightViolet,
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                )
+                Spacer(modifier = Modifier.height(1.dp))
+                Text(
+                    text = "Draken's Library",
+                    color = SmokeWhite,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp
+                )
+            }
         }
 
-        // Circle User / Sync Avatar Button
+        // Botón de sincronización Google Drive / Repositorio
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(44.dp)
                 .clip(CircleShape)
                 .background(DarkSurface)
                 .border(1.dp, SubtleDivider, CircleShape)
@@ -232,11 +325,85 @@ private fun ImmersiveHeader(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Perfil y Sincronización Google Drive",
+                imageVector = Icons.Default.Sync,
+                contentDescription = "Sincronizar Repositorio / Google Drive",
                 tint = NightViolet,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(22.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun StorageManagerBanner(
+    storageMb: String,
+    downloadedCount: Int,
+    totalCount: Int,
+    onOpenSyncDialog: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, SubtleDivider, RoundedCornerShape(16.dp))
+            .clickable { onOpenSyncDialog() },
+        colors = CardDefaults.cardColors(containerColor = DarkSurface)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(DarkSurfaceElevated),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SdStorage,
+                        contentDescription = null,
+                        tint = if (downloadedCount > 0) AmberStar else MediumGray,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Column {
+                    Text(
+                        text = "Gestor de Almacenamiento",
+                        color = SmokeWhite,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "$storageMb MB usados • $downloadedCount de $totalCount descargados",
+                        color = MediumGray,
+                        fontSize = 11.5.sp
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(NightViolet.copy(alpha = 0.15f))
+                    .border(1.dp, NightViolet.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    text = "Gestionar",
+                    color = NightViolet,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
@@ -244,8 +411,11 @@ private fun ImmersiveHeader(
 @Composable
 private fun ImmersiveBookCard(
     book: BookEntity,
+    isDownloading: Boolean,
     onClick: () -> Unit,
-    onReadClick: () -> Unit
+    onReadClick: () -> Unit,
+    onDownloadClick: () -> Unit,
+    onDeleteDownloadClick: () -> Unit
 ) {
     val progress = (book.currentPage.toFloat() / book.totalPages.toFloat()).coerceIn(0f, 1f)
     val percentText = (progress * 100).toInt()
@@ -265,11 +435,11 @@ private fun ImmersiveBookCard(
                 .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Book cover representation with progress bar inside
+            // Portada y barra de progreso
             Box(
                 modifier = Modifier
                     .width(80.dp)
-                    .height(112.dp)
+                    .height(116.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(DarkSurfaceElevated)
                     .border(1.dp, Color(0xFF3D3D3D), RoundedCornerShape(10.dp))
@@ -282,7 +452,6 @@ private fun ImmersiveBookCard(
                     CategoryTag(category = book.category)
 
                     Column {
-                        // Mini progress bar
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -311,9 +480,9 @@ private fun ImmersiveBookCard(
                 }
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
-            // Book Details
+            // Metadatos y acciones de lectura online vs descarga
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -321,15 +490,61 @@ private fun ImmersiveBookCard(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text(
-                        text = book.title,
-                        color = SmokeWhite,
-                        fontSize = 15.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 19.sp
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = book.title,
+                            color = SmokeWhite,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Badge En Línea / Descargado
+                        if (book.isDownloaded) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DownloadDone,
+                                    contentDescription = "Descargado offline",
+                                    tint = Color(0xFF06D6A0),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Offline",
+                                    color = Color(0xFF06D6A0),
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudQueue,
+                                    contentDescription = "En Línea (0 MB)",
+                                    tint = NightViolet,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "En Línea",
+                                    color = NightViolet,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = book.author,
@@ -340,35 +555,71 @@ private fun ImmersiveBookCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Star Ratings
                     StarRatingBar(
                         rating = book.rating,
                         starSize = 13.dp,
                         starColor = NightViolet
                     )
 
-                    // Tag PDF / Action
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(CharcoalBlack)
-                            .border(1.dp, SubtleDivider, RoundedCornerShape(6.dp))
-                            .clickable { onReadClick() }
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "PDF",
-                            color = NightViolet,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        // Botón de Descarga / Liberar espacio
+                        if (isDownloading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = NightViolet
+                            )
+                        } else if (book.isDownloaded) {
+                            IconButton(
+                                onClick = onDeleteDownloadClick,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Liberar espacio de descarga",
+                                    tint = MediumGray,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        } else {
+                            IconButton(
+                                onClick = onDownloadClick,
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDownload,
+                                    contentDescription = "Descargar para lectura offline",
+                                    tint = NightViolet,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        // Botón Leer
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(NightViolet)
+                                .clickable { onReadClick() }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "LEER",
+                                color = CharcoalBlack,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -439,7 +690,7 @@ private fun LibraryStatsCard(
     totalBooks: Int,
     totalNotes: Int,
     totalIdols: Int,
-    finishedBooks: Int
+    downloadedBooks: Int
 ) {
     Card(
         modifier = Modifier
@@ -454,7 +705,7 @@ private fun LibraryStatsCard(
                 .padding(16.dp)
         ) {
             Text(
-                text = "ESTADO DE LA BIBLIOTECA",
+                text = "ESTADO DE LA BIBLIOTECA RELACIONAL",
                 color = MediumGray,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -468,9 +719,9 @@ private fun LibraryStatsCard(
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
                 StatItem(count = "$totalBooks", label = "Volúmenes", icon = Icons.Default.MenuBook)
+                StatItem(count = "$downloadedBooks", label = "Descargados", icon = Icons.Default.CloudDone)
                 StatItem(count = "$totalNotes", label = "Anotaciones", icon = Icons.Default.Bookmark)
                 StatItem(count = "$totalIdols", label = "Ídolos", icon = Icons.Default.Psychology)
-                StatItem(count = "$finishedBooks", label = "Completados", icon = Icons.Default.AutoStories)
             }
         }
     }
@@ -505,4 +756,3 @@ private fun StatItem(
         )
     }
 }
-

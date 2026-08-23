@@ -3,35 +3,34 @@ package com.example.data.repository
 import android.content.Context
 import com.example.data.dao.BookDao
 import com.example.data.dao.BookNoteDao
+import com.example.data.dao.IdolDao
 import com.example.data.datasource.BooksJsonManager
 import com.example.data.datasource.IdolsDataSource
 import com.example.data.model.BookEntity
 import com.example.data.model.BookNoteEntity
-import com.example.data.model.IdolAuthor
+import com.example.data.model.IdolEntity
+import com.example.pdf.PdfHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 
 class LibraryRepository(
     private val bookDao: BookDao,
     private val bookNoteDao: BookNoteDao,
+    private val idolDao: IdolDao,
     private val context: Context
 ) {
+    private val pdfHelper = PdfHelper(context)
 
     val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
+    val downloadedBooks: Flow<List<BookEntity>> = bookDao.getDownloadedBooks()
     val allNotes: Flow<List<BookNoteEntity>> = bookNoteDao.getAllNotes()
+    val allIdols: Flow<List<IdolEntity>> = idolDao.getAllIdols()
+    val totalStorageUsedBytes: Flow<Long?> = bookDao.getTotalStorageUsedBytes()
 
     suspend fun checkAndSeedInitialData() = withContext(Dispatchers.IO) {
-        val count = bookDao.getBookCount()
-        if (count == 0) {
-            val initialData = BooksJsonManager.loadInitialCatalog(context)
-            if (initialData != null && initialData.books.isNotEmpty()) {
-                bookDao.insertBooks(initialData.books)
-                if (initialData.notes.isNotEmpty()) {
-                    bookNoteDao.insertNotes(initialData.notes)
-                }
-            }
-        }
+        // La aplicación arranca 100% vacía en la primera instalación según especificación.
     }
 
     fun getBooksByCategory(category: String): Flow<List<BookEntity>> {
@@ -74,12 +73,83 @@ class LibraryRepository(
         bookDao.updateProgress(bookId, page, isFinished)
     }
 
+    suspend fun downloadBook(book: BookEntity): Result<Long> = withContext(Dispatchers.IO) {
+        try {
+            val (file, size) = pdfHelper.downloadBookToStorage(book)
+            bookDao.updateDownloadStatus(
+                id = book.id,
+                isDownloaded = true,
+                pdfPath = file.absolutePath,
+                fileSizeBytes = size
+            )
+            Result.success(size)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteDownload(book: BookEntity): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            pdfHelper.deleteLocalDownload(book)
+            bookDao.updateDownloadStatus(
+                id = book.id,
+                isDownloaded = false,
+                pdfPath = "",
+                fileSizeBytes = 0L
+            )
+            Result.success(Unit)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun downloadAllBooks(): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val books = allBooks.firstOrNull() ?: emptyList()
+            var count = 0
+            for (book in books) {
+                if (!book.isDownloaded) {
+                    val (file, size) = pdfHelper.downloadBookToStorage(book)
+                    bookDao.updateDownloadStatus(book.id, true, file.absolutePath, size)
+                    count++
+                }
+            }
+            Result.success(count)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteAllDownloads(): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val books = allBooks.firstOrNull() ?: emptyList()
+            var count = 0
+            for (book in books) {
+                if (book.isDownloaded) {
+                    pdfHelper.deleteLocalDownload(book)
+                    bookDao.updateDownloadStatus(book.id, false, "", 0L)
+                    count++
+                }
+            }
+            Result.success(count)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun deleteBook(book: BookEntity) = withContext(Dispatchers.IO) {
+        pdfHelper.deleteLocalDownload(book)
         bookNoteDao.deleteNotesByBookId(book.id)
         bookDao.deleteBook(book)
     }
 
     suspend fun deleteBookById(id: String) = withContext(Dispatchers.IO) {
+        val book = bookDao.getBookByIdSync(id)
+        if (book != null) {
+            pdfHelper.deleteLocalDownload(book)
+        }
         bookNoteDao.deleteNotesByBookId(id)
         bookDao.deleteBookById(id)
     }
@@ -96,16 +166,32 @@ class LibraryRepository(
         bookNoteDao.deleteNoteById(id)
     }
 
-    // Salón de los Ídolos
-    fun getAllIdols(): List<IdolAuthor> {
-        return IdolsDataSource.IDOLS
+    // Salón de los Ídolos (SQLite)
+    fun getIdolById(id: String): Flow<IdolEntity?> {
+        return idolDao.getIdolById(id)
     }
 
-    fun getIdolById(id: String): IdolAuthor? {
-        return IdolsDataSource.getById(id)
+    suspend fun getIdolByIdSync(id: String): IdolEntity? = withContext(Dispatchers.IO) {
+        idolDao.getIdolByIdSync(id)
     }
 
-    // Import / Export JSON
+    suspend fun insertIdol(idol: IdolEntity) = withContext(Dispatchers.IO) {
+        idolDao.insertIdol(idol)
+    }
+
+    suspend fun updateIdol(idol: IdolEntity) = withContext(Dispatchers.IO) {
+        idolDao.updateIdol(idol)
+    }
+
+    suspend fun deleteIdol(idol: IdolEntity) = withContext(Dispatchers.IO) {
+        idolDao.deleteIdol(idol)
+    }
+
+    suspend fun deleteIdolById(id: String) = withContext(Dispatchers.IO) {
+        idolDao.deleteIdolById(id)
+    }
+
+    // Import / Export JSON & Remote Repositories / Google Drive
     suspend fun importJsonData(jsonString: String, replaceExisting: Boolean = false): Result<Int> = withContext(Dispatchers.IO) {
         try {
             val parsed = BooksJsonManager.parseLibraryJsonString(jsonString)
@@ -124,20 +210,36 @@ class LibraryRepository(
         }
     }
 
-    suspend fun exportCurrentDatabase(): String = withContext(Dispatchers.IO) {
-        // Collect current books and notes synchronously
-        val parsed = BooksJsonManager.loadInitialCatalog(context)
-        val initialBooks = parsed?.books ?: emptyList()
-        val initialNotes = parsed?.notes ?: emptyList()
-        BooksJsonManager.exportToJsonString(initialBooks, initialNotes)
+    suspend fun importFromUrl(url: String, replaceExisting: Boolean = false): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            val parsed = BooksJsonManager.fetchCatalogFromUrl(url)
+            if (replaceExisting) {
+                bookDao.clearAll()
+            }
+            if (parsed.books.isNotEmpty()) {
+                bookDao.insertBooks(parsed.books)
+                if (parsed.notes.isNotEmpty()) {
+                    bookNoteDao.insertNotes(parsed.notes)
+                }
+            }
+            Result.success(parsed.books.size)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
-    suspend fun resetToDefaultCatalog() = withContext(Dispatchers.IO) {
-        bookDao.clearAll()
+    suspend fun exportCurrentDatabase(): String = withContext(Dispatchers.IO) {
+        val currentBooks = allBooks.firstOrNull() ?: emptyList()
+        val currentNotes = allNotes.firstOrNull() ?: emptyList()
+        BooksJsonManager.exportToJsonString(currentBooks, currentNotes)
+    }
+
+    suspend fun loadDemoCatalog() = withContext(Dispatchers.IO) {
         val initialData = BooksJsonManager.loadInitialCatalog(context)
         if (initialData != null) {
             bookDao.insertBooks(initialData.books)
             bookNoteDao.insertNotes(initialData.notes)
         }
+        idolDao.insertIdols(IdolsDataSource.IDOLS)
     }
 }

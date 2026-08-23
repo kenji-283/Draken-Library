@@ -23,7 +23,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -33,8 +36,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -81,6 +86,9 @@ fun BookDetailScreen(
     onAddNote: (pageNumber: Int, selectedText: String, noteText: String, colorHex: String) -> Unit,
     onDeleteNote: (String) -> Unit,
     onDeleteBook: (BookEntity) -> Unit,
+    onDownloadBook: (BookEntity) -> Unit = {},
+    onDeleteDownload: (BookEntity) -> Unit = {},
+    isDownloading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     if (book == null) {
@@ -97,6 +105,8 @@ fun BookDetailScreen(
 
     var showAddNoteDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+
+    val sizeMb = String.format("%.1f", book.fileSizeBytes / (1024.0 * 1024.0))
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -135,7 +145,7 @@ fun BookDetailScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
-                                contentDescription = "Eliminar libro",
+                                contentDescription = "Eliminar de la biblioteca",
                                 tint = MediumGray
                             )
                         }
@@ -164,7 +174,28 @@ fun BookDetailScreen(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        CategoryTag(category = book.category)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CategoryTag(category = book.category)
+
+                            if (book.isDownloaded) {
+                                Text(
+                                    text = "OFFLINE",
+                                    color = Color(0xFF06D6A0),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                Text(
+                                    text = "EN LÍNEA",
+                                    color = NightViolet,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
 
                         Text(
                             text = book.title,
@@ -204,6 +235,81 @@ fun BookDetailScreen(
                 }
             }
 
+            // Barra de Gestión de Almacenamiento del Libro (Descargar vs En Línea)
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, SubtleDivider, RoundedCornerShape(12.dp)),
+                    colors = CardDefaults.cardColors(containerColor = DarkSurface)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (book.isDownloaded) Icons.Default.DownloadDone else Icons.Default.CloudQueue,
+                                contentDescription = null,
+                                tint = if (book.isDownloaded) Color(0xFF06D6A0) else NightViolet,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = if (book.isDownloaded) "Descargado en dispositivo" else "Lectura en Línea (0 MB ocupados)",
+                                    color = SmokeWhite,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (book.isDownloaded) "Espacio ocupado: $sizeMb MB" else "Disponible en repositorio / Google Drive",
+                                    color = MediumGray,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        if (isDownloading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = NightViolet
+                            )
+                        } else if (book.isDownloaded) {
+                            OutlinedButton(
+                                onClick = { onDeleteDownload(book) },
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MediumGray),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, SubtleDivider),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Liberar", fontSize = 11.sp)
+                            }
+                        } else {
+                            Button(
+                                onClick = { onDownloadBook(book) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = DarkSurfaceElevated,
+                                    contentColor = NightViolet
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Descargar", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
             // Botón de acción principal: Abrir en Lector PDF
             item {
                 Button(
@@ -225,8 +331,8 @@ fun BookDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "ABRIR LECTOR PDF INTERACTIVO",
-                        fontSize = 14.sp,
+                        text = if (book.isDownloaded) "LEER LIBRO (MODO OFFLINE)" else "LEER EN LÍNEA (STREAMING)",
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp
                     )
@@ -337,7 +443,7 @@ fun BookDetailScreen(
             onDismissRequest = { showDeleteConfirmDialog = false },
             containerColor = DarkSurface,
             title = { Text("Eliminar libro", color = SmokeWhite, fontWeight = FontWeight.Bold) },
-            text = { Text("¿Deseas eliminar '${book.title}' y todas sus anotaciones?", color = MediumGray) },
+            text = { Text("¿Deseas eliminar '${book.title}' y todas sus anotaciones de la base de datos?", color = MediumGray) },
             confirmButton = {
                 TextButton(
                     onClick = {

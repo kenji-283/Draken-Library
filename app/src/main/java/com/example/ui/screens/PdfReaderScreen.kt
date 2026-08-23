@@ -147,7 +147,7 @@ fun PdfReaderScreen(
         isLoadingPage = true
         withContext(Dispatchers.IO) {
             try {
-                val file = pdfHelper.getOrCreatePdfFile(book)
+                val file = pdfHelper.getPdfFileForReading(book)
                 val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                 val renderer = PdfRenderer(pfd)
                 fileDescriptor = pfd

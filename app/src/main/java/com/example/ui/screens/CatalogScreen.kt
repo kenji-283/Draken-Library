@@ -25,10 +25,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -73,10 +78,12 @@ fun CatalogScreen(
     onBookClick: (String) -> Unit,
     onAddBookClick: () -> Unit,
     onBackClick: () -> Unit,
+    onDownloadBook: (BookEntity) -> Unit = {},
+    onDeleteDownload: (BookEntity) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val categories = remember {
-        listOf("Todos") + BookCategory.ALL_CATEGORIES
+    val filterTabs = remember {
+        listOf("Todos", "Descargados", "En Línea") + BookCategory.ALL_CATEGORIES
     }
 
     Scaffold(
@@ -124,13 +131,13 @@ fun CatalogScreen(
 
                 Column {
                     Text(
-                        text = "Biblioteca de Lecturas",
+                        text = "Catálogo de Lecturas",
                         color = SmokeWhite,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "${uiState.filteredBooks.size} libros encontrados",
+                        text = "${uiState.filteredBooks.size} libros (${uiState.downloadedBooks.size} descargados para offline)",
                         color = MediumGray,
                         fontSize = 12.sp
                     )
@@ -141,7 +148,7 @@ fun CatalogScreen(
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = onSearchQueryChanged,
-                placeholder = { Text("Buscar por título, autor...", color = MediumGray, fontSize = 14.sp) },
+                placeholder = { Text("Buscar por título, autor o categoría...", color = MediumGray, fontSize = 13.5.sp) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -178,7 +185,7 @@ fun CatalogScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Pestañas Horizontales de Categorías Estrictas: Filosofía, Ciencia, Novela, Poesía, Teatro
+            // Pestañas de filtrado: Todos, Descargados, En Línea, Filosofía, Ciencia, Novela, Poesía, Teatro
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -186,11 +193,11 @@ fun CatalogScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
-                items(categories) { category ->
+                items(filterTabs) { tab ->
                     CategoryChip(
-                        category = category,
-                        isSelected = uiState.selectedCategory.equals(category, ignoreCase = true),
-                        onClick = { onCategorySelected(category) }
+                        category = tab,
+                        isSelected = uiState.selectedCategory.equals(tab, ignoreCase = true),
+                        onClick = { onCategorySelected(tab) }
                     )
                 }
             }
@@ -216,13 +223,13 @@ fun CatalogScreen(
                             modifier = Modifier.size(54.dp)
                         )
                         Text(
-                            text = "No se encontraron libros en esta categoría",
+                            text = "No hay libros en este filtro",
                             color = SmokeWhite,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "Pulsa el botón + para añadir un libro nuevo o importa tu archivo JSON.",
+                            text = "Puedes cambiar de pestaña o añadir uno nuevo con el botón +",
                             color = MediumGray,
                             fontSize = 12.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -239,9 +246,13 @@ fun CatalogScreen(
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(uiState.filteredBooks, key = { it.id }) { book ->
+                        val isDownloading = uiState.downloadingBookIds.contains(book.id)
                         CatalogBookItemCard(
                             book = book,
-                            onClick = { onBookClick(book.id) }
+                            isDownloading = isDownloading,
+                            onClick = { onBookClick(book.id) },
+                            onDownloadClick = { onDownloadBook(book) },
+                            onDeleteDownloadClick = { onDeleteDownload(book) }
                         )
                     }
                 }
@@ -253,7 +264,10 @@ fun CatalogScreen(
 @Composable
 private fun CatalogBookItemCard(
     book: BookEntity,
-    onClick: () -> Unit
+    isDownloading: Boolean,
+    onClick: () -> Unit,
+    onDownloadClick: () -> Unit,
+    onDeleteDownloadClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -293,13 +307,44 @@ private fun CatalogBookItemCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CategoryTag(category = book.category)
-                    if (book.isFinished) {
-                        Text(
-                            text = "LEÍDO",
-                            color = NightViolet,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+
+                    // Estado offline / en línea
+                    if (book.isDownloaded) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DownloadDone,
+                                contentDescription = "Descargado offline",
+                                tint = Color(0xFF06D6A0),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = "Descargado",
+                                color = Color(0xFF06D6A0),
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudQueue,
+                                contentDescription = "En Línea",
+                                tint = NightViolet,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = "En Línea (0 MB)",
+                                color = NightViolet,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
 
@@ -322,29 +367,62 @@ private fun CatalogBookItemCard(
 
                 Spacer(modifier = Modifier.height(2.dp))
 
-                // Calificación en estrellas
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    StarRatingBar(
-                        rating = book.rating,
-                        starSize = 13.dp,
-                        starColor = NightViolet
-                    )
-                    Text(
-                        text = "${book.rating}.0",
-                        color = SmokeWhite,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                    // Calificación en estrellas
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        StarRatingBar(
+                            rating = book.rating,
+                            starSize = 13.dp,
+                            starColor = NightViolet
+                        )
+                        Text(
+                            text = "${book.rating}.0",
+                            color = SmokeWhite,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
 
-                Text(
-                    text = "Pág. ${book.currentPage} de ${book.totalPages}",
-                    color = MediumGray,
-                    fontSize = 11.sp
-                )
+                    // Acciones de descarga
+                    if (isDownloading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = NightViolet
+                        )
+                    } else if (book.isDownloaded) {
+                        IconButton(
+                            onClick = onDeleteDownloadClick,
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Liberar espacio",
+                                tint = MediumGray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    } else {
+                        IconButton(
+                            onClick = onDownloadClick,
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudDownload,
+                                contentDescription = "Descargar libro",
+                                tint = NightViolet,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }

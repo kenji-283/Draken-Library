@@ -7,6 +7,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -20,6 +22,45 @@ data class ParsedLibraryData(
 )
 
 object BooksJsonManager {
+
+    /**
+     * Transforma enlaces de Google Drive estándar (view/share) a enlaces directos de descarga/streaming.
+     */
+    fun convertGoogleDriveUrl(url: String): String {
+        val trimmed = url.trim()
+        if (trimmed.contains("drive.google.com")) {
+            // Extraer ID de archivo de /d/{id}/
+            val fileIdPattern = Regex("/d/([a-zA-Z0-9_-]+)")
+            val match = fileIdPattern.find(trimmed)
+            if (match != null) {
+                val fileId = match.groupValues[1]
+                return "https://drive.google.com/uc?export=download&id=$fileId"
+            }
+            // Extraer ID de id={id}
+            val idParamPattern = Regex("[?&]id=([a-zA-Z0-9_-]+)")
+            val matchParam = idParamPattern.find(trimmed)
+            if (matchParam != null) {
+                val fileId = matchParam.groupValues[1]
+                return "https://drive.google.com/uc?export=download&id=$fileId"
+            }
+        }
+        return trimmed
+    }
+
+    /**
+     * Descarga y parsea un catálogo JSON remoto desde un repositorio en línea o Google Drive.
+     */
+    fun fetchCatalogFromUrl(url: String): ParsedLibraryData {
+        val finalUrl = convertGoogleDriveUrl(url)
+        val connection = URL(finalUrl).openConnection() as HttpURLConnection
+        connection.connectTimeout = 10000
+        connection.readTimeout = 15000
+        connection.requestMethod = "GET"
+        connection.connect()
+
+        val jsonString = connection.inputStream.bufferedReader().use { it.readText() }
+        return parseLibraryJsonString(jsonString)
+    }
 
     /**
      * Parsea un archivo JSON o InputStream con la estructura canónica de Draken's Library.
@@ -51,6 +92,10 @@ object BooksJsonManager {
             val isFinished = bookObj.optBoolean("isFinished", currentPage >= totalPages)
             val coverUrl = bookObj.optString("coverUrl", "")
             val pdfPath = bookObj.optString("pdfPath", "")
+            val rawOnlineUrl = bookObj.optString("pdfOnlineUrl", "")
+            val pdfOnlineUrl = if (rawOnlineUrl.isNotEmpty()) convertGoogleDriveUrl(rawOnlineUrl) else ""
+            val isDownloaded = bookObj.optBoolean("isDownloaded", false)
+            val fileSizeBytes = bookObj.optLong("fileSizeBytes", (1.5 * 1024 * 1024).toLong())
 
             val bookEntity = BookEntity(
                 id = bookId,
@@ -59,6 +104,9 @@ object BooksJsonManager {
                 category = category,
                 coverUrl = coverUrl,
                 pdfPath = pdfPath,
+                pdfOnlineUrl = pdfOnlineUrl,
+                isDownloaded = isDownloaded,
+                fileSizeBytes = fileSizeBytes,
                 rating = rating,
                 synopsis = synopsis,
                 totalPages = totalPages,
@@ -142,6 +190,9 @@ object BooksJsonManager {
             bookObj.put("isFinished", book.isFinished)
             bookObj.put("coverUrl", book.coverUrl)
             bookObj.put("pdfPath", book.pdfPath)
+            bookObj.put("pdfOnlineUrl", book.pdfOnlineUrl)
+            bookObj.put("isDownloaded", book.isDownloaded)
+            bookObj.put("fileSizeBytes", book.fileSizeBytes)
 
             val notesArray = JSONArray()
             val bookNotes = notesByBook[book.id] ?: emptyList()

@@ -21,7 +21,11 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -29,6 +33,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -64,19 +70,27 @@ import com.example.ui.theme.SubtleDivider
 
 @Composable
 fun DriveSyncDialog(
+    totalStorageBytes: Long = 0L,
+    downloadedCount: Int = 0,
+    totalBooksCount: Int = 0,
     onDismiss: () -> Unit,
     onImportJson: (jsonString: String, replaceExisting: Boolean) -> Unit,
+    onImportFromUrl: (url: String, replaceExisting: Boolean) -> Unit,
     onExportRequested: ((String) -> Unit) -> Unit,
+    onDownloadAll: () -> Unit = {},
+    onDeleteAllDownloads: () -> Unit = {},
     onResetDefaults: () -> Unit
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val scrollState = rememberScrollState()
 
+    var remoteUrlInput by remember { mutableStateOf("") }
     var jsonInput by remember { mutableStateOf("") }
     var replaceExisting by remember { mutableStateOf(false) }
     var exportedJsonPreview by remember { mutableStateOf<String?>(null) }
-    var showExportSuccess by remember { mutableStateOf(false) }
+
+    val storageMb = String.format("%.2f", totalStorageBytes / (1024.0 * 1024.0))
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -91,10 +105,10 @@ fun DriveSyncDialog(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Sincronización & Google Drive",
+                    text = "Almacenamiento & Repositorio",
                     color = SmokeWhite,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                    fontSize = 17.5.sp
                 )
             }
         },
@@ -105,14 +119,139 @@ fun DriveSyncDialog(
                     .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Estado del Almacenamiento
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, SubtleDivider, RoundedCornerShape(10.dp)),
+                    colors = CardDefaults.cardColors(containerColor = DarkSurfaceElevated)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SdStorage,
+                                contentDescription = null,
+                                tint = AmberStar,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Espacio ocupado en dispositivo: $storageMb MB",
+                                color = SmokeWhite,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            text = "$downloadedCount libros descargados de un total de $totalBooksCount. Los libros no descargados se transmiten en tiempo real sin ocupar espacio.",
+                            color = MediumGray,
+                            fontSize = 11.5.sp,
+                            lineHeight = 15.sp
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onDownloadAll,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NightViolet),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, NightViolet.copy(alpha = 0.4f)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Descargar Todo", fontSize = 10.5.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = onDeleteAllDownloads,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE63946)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE63946).copy(alpha = 0.4f)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Liberar Espacio", fontSize = 10.5.sp)
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = SubtleDivider, thickness = 1.dp)
+
+                // Sincronizar desde Google Drive o Repositorio en Línea (URL)
                 Text(
-                    text = "Mecanismo de sincronización manual mediante archivo estructurado 'books_database.json'. Puedes importar tus obras desde Google Drive o exportar la base de datos actual.",
-                    color = MediumGray,
-                    fontSize = 12.5.sp,
-                    lineHeight = 17.sp
+                    text = "IMPORTAR DESDE GOOGLE DRIVE / REPOSITORIO:",
+                    color = NightViolet,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
                 )
 
-                // Botones de acción rápida: Exportar y Restaurar
+                OutlinedTextField(
+                    value = remoteUrlInput,
+                    onValueChange = { remoteUrlInput = it },
+                    placeholder = {
+                        Text(
+                            "Pega enlace de Google Drive o URL de repositorio...",
+                            color = MediumGray.copy(alpha = 0.5f),
+                            fontSize = 11.5.sp
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Default.Link, contentDescription = null, tint = MediumGray)
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = SmokeWhite,
+                        unfocusedTextColor = SmokeWhite,
+                        focusedBorderColor = NightViolet,
+                        unfocusedBorderColor = SubtleDivider,
+                        focusedContainerColor = DarkSurfaceElevated,
+                        unfocusedContainerColor = DarkSurfaceElevated
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Button(
+                    onClick = {
+                        if (remoteUrlInput.isNotBlank()) {
+                            onImportFromUrl(remoteUrlInput, replaceExisting)
+                            onDismiss()
+                        }
+                    },
+                    enabled = remoteUrlInput.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = NightViolet,
+                        contentColor = CharcoalBlack
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(imageVector = Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Sincronizar Repositorio / Drive", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+
+                HorizontalDivider(color = SubtleDivider, thickness = 1.dp)
+
+                // Respaldo Manual JSON
+                Text(
+                    text = "COPIA DE SEGURIDAD JSON MANUAL:",
+                    color = NightViolet,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -122,20 +261,17 @@ fun DriveSyncDialog(
                             onExportRequested { json ->
                                 exportedJsonPreview = json
                                 clipboardManager.setText(AnnotatedString(json))
-                                Toast.makeText(context, "JSON copiado al portapapeles para Google Drive", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "JSON copiado al portapapeles", Toast.LENGTH_SHORT).show()
                             }
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = NightViolet),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, NightViolet.copy(alpha = 0.5f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, NightViolet.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.CloudUpload,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Exportar JSON", fontSize = 12.sp)
+                        Text("Exportar JSON", fontSize = 11.5.sp)
                     }
 
                     OutlinedButton(
@@ -146,38 +282,26 @@ fun DriveSyncDialog(
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberStar),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, AmberStar.copy(alpha = 0.5f))
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AmberStar.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.RestartAlt,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Restaurar", fontSize = 12.sp)
+                        Text("Restaurar", fontSize = 11.5.sp)
                     }
                 }
-
-                // Importar JSON
-                Text(
-                    text = "IMPORTAR O SINCRONIZAR JSON:",
-                    color = NightViolet,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                )
 
                 OutlinedTextField(
                     value = jsonInput,
                     onValueChange = { jsonInput = it },
                     placeholder = {
                         Text(
-                            "Pega aquí el contenido de tu archivo books_database.json...",
+                            "O pega aquí texto JSON directo...",
                             color = MediumGray.copy(alpha = 0.5f),
-                            fontSize = 12.sp
+                            fontSize = 11.5.sp
                         )
                     },
-                    maxLines = 6,
+                    maxLines = 4,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = SmokeWhite,
                         unfocusedTextColor = SmokeWhite,
@@ -192,7 +316,7 @@ fun DriveSyncDialog(
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(130.dp)
+                        .height(90.dp)
                         .testTag("input_sync_json")
                 )
 
@@ -210,7 +334,7 @@ fun DriveSyncDialog(
                         )
                     )
                     Text(
-                        text = "Reemplazar catálogo completo existente",
+                        text = "Reemplazar catálogo completo",
                         color = SmokeWhite,
                         fontSize = 12.sp
                     )
@@ -230,7 +354,7 @@ fun DriveSyncDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "JSON GENERADO EXITOSAMENTE",
+                                    text = "JSON EXPORTADO CON ÉXITO",
                                     color = NightViolet,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
@@ -251,11 +375,11 @@ fun DriveSyncDialog(
                                 }
                             }
                             Text(
-                                text = exportedJsonPreview!!.take(250) + "...\n(Copiado al portapapeles)",
+                                text = exportedJsonPreview!!.take(200) + "...\n(Copiado al portapapeles)",
                                 color = MediumGray,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 10.sp,
-                                maxLines = 4
+                                maxLines = 3
                             )
                         }
                     }
@@ -263,21 +387,20 @@ fun DriveSyncDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    if (jsonInput.isNotBlank()) {
+            if (jsonInput.isNotBlank()) {
+                Button(
+                    onClick = {
                         onImportJson(jsonInput, replaceExisting)
                         onDismiss()
-                    }
-                },
-                enabled = jsonInput.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = NightViolet,
-                    contentColor = CharcoalBlack
-                ),
-                modifier = Modifier.testTag("btn_confirm_import_json")
-            ) {
-                Text("Importar JSON", fontWeight = FontWeight.Bold)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = NightViolet,
+                        contentColor = CharcoalBlack
+                    ),
+                    modifier = Modifier.testTag("btn_confirm_import_json")
+                ) {
+                    Text("Importar JSON", fontWeight = FontWeight.Bold)
+                }
             }
         },
         dismissButton = {
