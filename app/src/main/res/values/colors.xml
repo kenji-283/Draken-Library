@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="charcoal_black">#121212</color>
+    <color name="dark_surface">#1E1E1E</color>
+    <color name="dark_surface_elevated">#262626</color>
+    <color name="smoke_white">#E0E0E0</color>
+    <color name="medium_gray">#9E9E9E</color>
+    <color name="subtle_divider">#2C2C2C</color>
+    <color name="night_violet">#BB86FC</color>
+    <color name="night_violet_dark">#9D4EDD</color>
+    <color name="amber_star">#FFD166</color>
+</resources>
+

@@ -1,0 +1,6 @@
+{
+  "name": "Draken's Library",
+  "description": "Aplicación móvil de biblioteca personal con modo oscuro puro, catálogo clasificado en Filosofía, Ciencia, Novela, Poesía y Teatro, Salón de los Ídolos, lector PDF nativo con subrayado y notas, y persistencia local.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

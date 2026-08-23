@@ -1,0 +1,234 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-08-23T11:00:00Z",
+  "description": "Draken's Library initial catalog and sample annotations",
+  "books": [
+    {
+      "id": "book-fil-01",
+      "title": "Meditaciones",
+      "author": "Marco Aurelio",
+      "category": "Filosofía",
+      "rating": 5,
+      "synopsis": "Reflexiones íntimas del emperador filósofo estoico sobre la virtud, la serenidad interior, el deber y la aceptación de la naturaleza universal.",
+      "totalPages": 180,
+      "currentPage": 42,
+      "isFinished": false,
+      "notes": [
+        {
+          "id": "note-fil-01-1",
+          "pageNumber": 12,
+          "selectedText": "Tienes poder sobre tu mente, no sobre los acontecimientos externos. Date cuenta de esto y encontrarás la fuerza.",
+          "noteText": "Principio fundamental de la dicotomía del control estoica. Clave para la paz mental.",
+          "highlightColorHex": "#BB86FC"
+        },
+        {
+          "id": "note-fil-01-2",
+          "pageNumber": 28,
+          "selectedText": "La mejor venganza es no ser como tu enemigo.",
+          "noteText": "Nobleza moral ante la adversidad.",
+          "highlightColorHex": "#FFD166"
+        }
+      ]
+    },
+    {
+      "id": "book-fil-02",
+      "title": "Así habló Zaratustra",
+      "author": "Friedrich Nietzsche",
+      "category": "Filosofía",
+      "rating": 5,
+      "synopsis": "Obra cumbre poético-filosófica que introduce las ideas del superhombre, la muerte de Dios y el eterno retorno de lo mismo.",
+      "totalPages": 320,
+      "currentPage": 115,
+      "isFinished": false,
+      "notes": [
+        {
+          "id": "note-fil-02-1",
+          "pageNumber": 45,
+          "selectedText": "El hombre es una cuerda tendida entre el animal y el superhombre: una cuerda sobre un abismo.",
+          "noteText": "La constante superación como fin y destino del ser humano.",
+          "highlightColorHex": "#BB86FC"
+        }
+      ]
+    },
+    {
+      "id": "book-fil-03",
+      "title": "El mito de Sísifo",
+      "author": "Albert Camus",
+      "category": "Filosofía",
+      "rating": 5,
+      "synopsis": "Tratado existencialista sobre el absurdo de la existencia y la rebelión lúcida del ser humano al abrazar la vida con pasión.",
+      "totalPages": 160,
+      "currentPage": 160,
+      "isFinished": true,
+      "notes": [
+        {
+          "id": "note-fil-03-1",
+          "pageNumber": 158,
+          "selectedText": "Hay que imaginarse a Sísifo dichoso.",
+          "noteText": "El triunfo sobre el absurdo no es la rendición, sino la consciencia desafiante.",
+          "highlightColorHex": "#06D6A0"
+        }
+      ]
+    },
+    {
+      "id": "book-cie-01",
+      "title": "Cosmos",
+      "author": "Carl Sagan",
+      "category": "Ciencia",
+      "rating": 5,
+      "synopsis": "Un viaje fascinante a través de quince mil millones de años de evolución cósmica que transformó la divulgación científica.",
+      "totalPages": 384,
+      "currentPage": 210,
+      "isFinished": false,
+      "notes": [
+        {
+          "id": "note-cie-01-1",
+          "pageNumber": 15,
+          "selectedText": "El cosmos está dentro de nosotros. Estamos hechos de materia estelar. Somos el medio para que el cosmos se conozca a sí mismo.",
+          "noteText": "Cita emblemática sobre nuestra conexión ontológica y física con el universo.",
+          "highlightColorHex": "#BB86FC"
+        }
+      ]
+    },
+    {
+      "id": "book-cie-02",
+      "title": "El origen de las especies",
+      "author": "Charles Darwin",
+      "category": "Ciencia",
+      "rating": 4,
+      "synopsis": "La obra fundacional de la biología moderna que explica el mecanismo de la selección natural en la evolución biológica.",
+      "totalPages": 450,
+      "currentPage": 88,
+      "isFinished": false,
+      "notes": [
+        {
+          "id": "note-cie-02-1",
+          "pageNumber": 72,
+          "selectedText": "Hay grandeza en esta concepción de la vida... a partir de un principio tan simple, se han desarrollado formas infinitas.",
+          "noteText": "Conclusión poética sobre la biodiversidad evolutiva.",
+          "highlightColorHex": "#FFD166"
+        }
+      ]
+    },
+    {
+      "id": "book-nov-01",
+      "title": "Ficciones",
+      "author": "Jorge Luis Borges",
+      "category": "Novela",
+      "rating": 5,
+      "synopsis": "Colección de relatos laberínticos, espejos, paradojas temporales y bibliotecas infinitas que desafían la frontera entre realidad y ficción.",
+      "totalPages": 220,
+      "currentPage": 140,
+      "isFinished": false,
+      "notes": [
+        {
+          "id": "note-nov-01-1",
+          "pageNumber": 65,
+          "selectedText": "Siempre imaginé que el Paraíso sería algún tipo de biblioteca.",
+          "noteText": "El lema del auténtico bibliófilo y soñador.",
+          "highlightColorHex": "#BB86FC"
+        }
+      ]
+    },
+    {
+      "id": "book-nov-02",
+      "title": "La metamorfosis",
+      "author": "Franz Kafka",
+      "category": "Novela",
+      "rating": 5,
+      "synopsis": "El despertar de Gregorio Samsa convertido en un insecto monstruoso y la deshumanización de la sociedad moderna.",
+      "totalPages": 120,
+      "currentPage": 120,
+      "isFinished": true,
+      "notes": [
+        {
+          "id": "note-nov-02-1",
+          "pageNumber": 1,
+          "selectedText": "Al despertar Gregorio Samsa una mañana, tras un sueño intranquilo, se encontró sobre su cama convertido en un monstruoso insecto.",
+          "noteText": "Uno de los inicios más memorables de la literatura universal.",
+          "highlightColorHex": "#06D6A0"
+        }
+      ]
+    },
+    {
+      "id": "book-poe-01",
+      "title": "Rimas y Leyendas",
+      "author": "Gustavo Adolfo Bécquer",
+      "category": "Poesía",
+      "rating": 5,
+      "synopsis": "Las poesías más líricas del romanticismo español, cargadas de misterio, desamor, ensueño y sensibilidad trascendente.",
+      "totalPages": 190,
+      "currentPage": 95,
+      "isFinished": false,
+      "notes": [
+        {
+          "id": "note-poe-01-1",
+          "pageNumber": 40,
+          "selectedText": "¿Qué es poesía?, dices mientras clavas en mi pupila tu pupila azul. ¿Qué es poesía? ¿Y tú me lo preguntas? Poesía... eres tú.",
+          "noteText": "Rima XXI. Pura sencillez y musicalidad romántica.",
+          "highlightColorHex": "#BB86FC"
+        }
+      ]
+    },
+    {
+      "id": "book-poe-02",
+      "title": "El cuervo y otros poemas",
+      "author": "Edgar Allan Poe",
+      "category": "Poesía",
+      "rating": 5,
+      "synopsis": "Atmósferas góticas, melancolía fúnebre y el rítmico 'Nunca más' del cuervo de Poe.",
+      "totalPages": 140,
+      "currentPage": 140,
+      "isFinished": true,
+      "notes": [
+        {
+          "id": "note-poe-02-1",
+          "pageNumber": 18,
+          "selectedText": "Y el cuervo dijo: 'Nunca más'.",
+          "noteText": "La fatalidad implacable del duelo y la locura.",
+          "highlightColorHex": "#BB86FC"
+        }
+      ]
+    },
+    {
+      "id": "book-tea-01",
+      "title": "La vida es sueño",
+      "author": "Calderón de la Barca",
+      "category": "Teatro",
+      "rating": 5,
+      "synopsis": "Drama filosófico barroco en verso sobre el libre albedrío, el destino y la naturaleza ilusoria de la existencia humana.",
+      "totalPages": 170,
+      "currentPage": 170,
+      "isFinished": true,
+      "notes": [
+        {
+          "id": "note-tea-01-1",
+          "pageNumber": 105,
+          "selectedText": "¿Qué es la vida? Un frenesí. ¿Qué es la vida? Una ilusión, una sombra, una ficción, y el mayor bien es pequeño: que toda la vida es sueño, y los sueños, sueños son.",
+          "noteText": "El monólogo de Segismundo. Cumbre del teatro clásico universal.",
+          "highlightColorHex": "#FFD166"
+        }
+      ]
+    },
+    {
+      "id": "book-tea-02",
+      "title": "Hamlet",
+      "author": "William Shakespeare",
+      "category": "Teatro",
+      "rating": 5,
+      "synopsis": "Tragedia inmortal sobre la duda, la venganza, la traición palaciega y la fragilidad de la razón humana.",
+      "totalPages": 240,
+      "currentPage": 110,
+      "isFinished": false,
+      "notes": [
+        {
+          "id": "note-tea-02-1",
+          "pageNumber": 80,
+          "selectedText": "Ser o no ser, esa es la cuestión.",
+          "noteText": "La interrogante existencial suprema ante el dolor del mundo.",
+          "highlightColorHex": "#BB86FC"
+        }
+      ]
+    }
+  ]
+}
