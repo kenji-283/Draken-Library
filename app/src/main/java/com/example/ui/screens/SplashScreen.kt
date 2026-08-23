@@ -17,7 +17,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -36,7 +39,9 @@ import com.example.ui.theme.CharcoalBlack
 import com.example.ui.theme.MediumGray
 import com.example.ui.theme.NightViolet
 import com.example.ui.theme.SmokeWhite
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -48,19 +53,35 @@ fun SplashScreen(
 ) {
     val scale = remember { Animatable(0.9f) }
     val alpha = remember { Animatable(0f) }
+    var hasFinished by remember { mutableStateOf(false) }
+
+    val safeFinish = remember(onSplashFinished) {
+        {
+            if (!hasFinished) {
+                hasFinished = true
+                onSplashFinished()
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
-        // Animación de entrada suave
-        alpha.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
-        )
-        scale.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
-        )
-        delay(900)
-        onSplashFinished()
+        // Animación fluida en paralelo
+        coroutineScope {
+            launch {
+                alpha.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
+                )
+            }
+            launch {
+                scale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
+                )
+            }
+        }
+        delay(1200)
+        safeFinish()
     }
 
     Box(
@@ -70,7 +91,7 @@ fun SplashScreen(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
-            ) { onSplashFinished() },
+            ) { safeFinish() },
         contentAlignment = Alignment.Center
     ) {
         Column(

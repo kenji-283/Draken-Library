@@ -132,9 +132,11 @@ fun DrakensNavGraph(
             composable(NavRoutes.SPLASH) {
                 SplashScreen(
                     onSplashFinished = {
-                        navController.navigate(NavRoutes.HOME) {
-                            popUpTo(NavRoutes.SPLASH) { inclusive = true }
-                            launchSingleTop = true
+                        if (navController.currentDestination?.route == NavRoutes.SPLASH) {
+                            navController.navigate(NavRoutes.HOME) {
+                                popUpTo(NavRoutes.SPLASH) { inclusive = true }
+                                launchSingleTop = true
+                            }
                         }
                     }
                 )
